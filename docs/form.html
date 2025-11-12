@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Part Movement Form</title>
+
+  <!-- React + Babel CDN -->
+  <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+  <!-- Tailwind CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+    <nav class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold">Part Movement Form</h1>
+      <div>
+        <a class="text-blue-600 hover:underline mr-4" href="/form.html">Form</a>
+        <a class="text-blue-600 hover:underline" href="/jogs.html">Admin: Movement Logs</a>
+      </div>
+    </nav>
+
+    <div id="root"></div>
+  </div>
+
+  <!-- ✅ ALL SCRIPT BELOW IS NOW INSIDE THIS ONE BLOCK -->
+  <script type="text/babel">
+
+    // ===== Email List =====
+    const emailList = [
+      { email: "judah.jodrey@email.com", role: "to", active: "yes", name: "Judah Jodrey" },
+      { email: "kaitlyn.arlotta@email.com", role: "to", active: "yes", name: "Kaitlyn Arlotta" },
+      { email: "david.pitman@network.email.com", role: "to", active: "yes", name: "David Pitman" },
+      { email: "madelyn.ricepelepko@network.email.com", role: "to", "active": "yes", name: "Madelyn Ricepelepko" }
+    ];
+
+    const ORG_NAME = "Your Organization";
+    const SITE_NAME = "Your Site";
+
+    // ===== Utility =====
+    function escapeHtml(unsafe) {
+      return (unsafe || '')
+        .toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function buildHtmlBody(formData) {
+      let html = `<html><body>`;
+      html += `<h3>${escapeHtml(ORG_NAME)} - ${escapeHtml(SITE_NAME)}</h3>`;
+      html += `<p>Parts Movement Notification</p>`;
+      html += `<table border="1" cellpadding="6">`;
+      const fields = [
+        { label: "Part Name", value: formData.part_name },
+        { label: "Etching", value: formData.etching },
+        { label: "Last Movement Date", value: formData.last_move_date || "N/A" },
+        { label: "Last Location", value: formData.last_location || "N/A" },
+        { label: "Reason for Movement to Last Location", value: formData.reason_to_last || "N/A" },
+        { label: "Current Movement Date", value: formData.current_move_date },
+        { label: "Next Location", value: formData.next_location },
+        { label: "Reason for Movement to Next Location", value: formData.reason_to_next },
+        { label: "Part Status", value: formData.part_status },
+        { label: "Issues", value: formData.issues },
+        { label: "Department", value: formData.dept },
+        { label: "Submitted By", value: formData.submitted_by }
+      ];
+      fields.forEach(field => {
+        html += `<tr><td><b>${escapeHtml(field.label)}</b></td><td>${escapeHtml(field.value)}</td></tr>`;
+      });
+      html += `</table></body></html>`;
+      return html;
+    }
+
+    // ===== React Component =====
+const PartMovementForm = () => {
+  const [formData, setFormData] = React.useState({
+    part_name: '', etching: '', last_move_date: '', last_location: '', reason_to_last: '',
+    current_move_date: '', next_location: '', reason_to_next: '', part_status: '',
+    issues: '', dept: '', dept_other: '', submitted_by: '', submitted_other: ''
+  });
+  const [error, setError] = React.useState('');
+  const [success, setSuccess] = React.useState('');
+  const [showOtherDept, setShowOtherDept] = React.useState(false);
+  const [showOtherSubmitter, setShowOtherSubmitter] = React.useState(false);
+  const [etchings, setEtchings] = React.useState([]);
+  const [partsEtchings, setPartsEtchings] = React.useState([]);
+  const [submittersList, setSubmitters] = React.useState([]);
+  const [partsNamesList, setPartsNamesList] = React.useState([]);
+
+  const locationsList = [
+    "PFS6 - Cage Shelf A", "PFS7 - Cage Shelf B", "PFS8 - Cage Shelf C",
+    "Engineering", "TSMS", "Maintenance", "PFS6 - In Service",
+    "PFS7 - In Service", "PFS8 - In Service"
+  ];
+  const departmentList = ["OPS", "ENG", "TSMS", "MAINTENANCE"];
+  const API_BASE = '/api'; // relative to the same host
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/etchings`)
+      .then(res => res.json())
+      .then(data => {
+        setPartsEtchings(data);
+        const uniqueNames = [...new Set(data.map(item => item.part_name))].sort((a, b) => a.localeCompare(b));
+        setPartsNamesList(uniqueNames);
+      })
+      .catch(err => console.error('Error fetching etchings:', err));
+
+    fetch(`${API_BASE}/submitters`)
+      .then(res => res.json())
+      .then(data => setSubmitters(data.sort((a, b) => a.localeCompare(b))))
+      .catch(err => console.error('Error fetching submitters:', err));
+  }, []);
+
+  const loadLastMovement = (partName, etchingValue) => {
+    if (!partName || !etchingValue) return;
+    
+    // Find the most recent log entry for this part and etching
+    fetch(`${API_BASE}/partslog`)
+      .then(res => res.json())
+      .then(data => {
+        const lastEntry = data
+          .filter(entry => entry.part_name === partName && entry.etching === etchingValue)
+          .sort((a, b) => new Date(b.current_move_date) - new Date(a.current_move_date))[0];
+        
+        if (lastEntry) {
+          setFormData(prev => ({
+            ...prev,
+            last_move_date: lastEntry.current_move_date || '',
+            last_location: lastEntry.next_location || '',
+            reason_to_last: lastEntry.reason_to_next || ''
+          }));
+        } else {
+          // No previous movement found
+          setFormData(prev => ({
+            ...prev,
+            last_move_date: '',
+            last_location: '',
+            reason_to_last: ''
+          }));
+        }
+      })
+      .catch(err => console.error('Error fetching last movement:', err));
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setError('');
+    setSuccess('');
+
+    if (name === 'part_name') {
+      const inServiceEtchings = partsEtchings
+        .filter(item => item.part_name === value && item.status === "In Service")
+        .map(item => item.etching)
+        .sort((a, b) => a.localeCompare(b));
+      setEtchings(inServiceEtchings);
+      setFormData(prev => ({
+        ...prev,
+        etching: '',
+        last_move_date: '',
+        last_location: '',
+        reason_to_last: ''
+      }));
+      if (inServiceEtchings.length === 0 && value) {
+        setError(`No In Service etchings available for ${value}.`);
+      }
+    }
+
+    if (name === 'etching') {
+      // Load last movement data when etching is selected
+      loadLastMovement(formData.part_name, value);
+    }
+
+    if (name === 'dept') {
+      setShowOtherDept(value === 'other - enter');
+      if (value !== 'other - enter') setFormData(prev => ({ ...prev, dept_other: '' }));
+    }
+
+    if (name === 'submitted_by') {
+      setShowOtherSubmitter(value === 'other - enter');
+      if (value !== 'other - enter') setFormData(prev => ({ ...prev, submitted_other: '' }));
+    }
+  };
+
+  const validateForm = () => {
+    const mandatoryFields = [
+      'part_name', 'etching', 'current_move_date', 'next_location',
+      'reason_to_next', 'part_status', 'issues', 'dept', 'submitted_by'
+    ];
+    const currentMoveDate = new Date(formData.current_move_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const field of mandatoryFields) {
+      if (!((formData[field] || '').toString().trim())) {
+        setError(`Please complete ${field.replace('_', ' ')}.`);
+        return false;
+      }
+    }
+    if (isNaN(currentMoveDate.getTime()) || currentMoveDate > today) {
+      setError('Current Movement Date must be valid and not in the future.');
+      return false;
+    }
+    if (formData.dept === 'other - enter' && !(formData.dept_other || '').trim()) {
+      setError("Please fill 'Department - Other'.");
+      return false;
+    }
+    if (formData.submitted_by === 'other - enter' && !(formData.submitted_other || '').trim()) {
+      setError("Please fill 'Submitted By - Other'.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    const data = {
+      ...formData,
+      dept: formData.dept === 'other - enter' ? formData.dept_other : formData.dept,
+      submitted_by: formData.submitted_by === 'other - enter' ? formData.submitted_other : formData.submitted_by
+    };
+
+    fetch(`${API_BASE}/partslog`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to save to server');
+      return res.json();
+    })
+    .then(() => {
+      setSuccess('Submission successful!');
+      setFormData({
+        part_name: '', etching: '', last_move_date: '', last_location: '', reason_to_last: '',
+        current_move_date: '', next_location: '', reason_to_next: '', part_status: '',
+        issues: '', dept: '', dept_other: '', submitted_by: '', submitted_other: ''
+      });
+      setShowOtherDept(false);
+      setShowOtherSubmitter(false);
+      setEtchings([]);
+    })
+    .catch(err => setError(err.message));
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="max-w-lg mx-auto p-4 bg-white shadow rounded">
+      <h2 className="text-xl font-bold mb-4">Part Movement Form</h2>
+
+      {error && <div className="text-red-600 mb-4">{error}</div>}
+      {success && <div className="text-blue-600 mb-4">{success}</div>}
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Part Name</label>
+        <select name="part_name" value={formData.part_name} onChange={handleChange} required className="w-full p-2 border rounded">
+          <option value="">Select a Part Name...</option>
+          {partsNamesList.map(part => (
+            <option key={part} value={part}>{part}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Etching</label>
+        <select name="etching" value={formData.etching} onChange={handleChange} required disabled={!formData.part_name} className="w-full p-2 border rounded">
+          <option value="">Select an Etching...</option>
+          {etchings.map(etching => (
+            <option key={etching} value={etching}>{etching}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Last Move Date</label>
+        <input type="date" name="last_move_date" value={formData.last_move_date} readOnly className="w-full p-2 border rounded bg-gray-100 cursor-not-allowed" />
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Last Location</label>
+        <input type="text" name="last_location" value={formData.last_location} readOnly className="w-full p-2 border rounded bg-gray-100 cursor-not-allowed" />
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Reason to Last</label>
+        <input type="text" name="reason_to_last" value={formData.reason_to_last} readOnly className="w-full p-2 border rounded bg-gray-100 cursor-not-allowed" />
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Current Move Date</label>
+        <input type="date" name="current_move_date" value={formData.current_move_date} onChange={handleChange} required className="w-full p-2 border rounded" />
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Next Location</label>
+        <select name="next_location" value={formData.next_location} onChange={handleChange} required className="w-full p-2 border rounded">
+          <option value="">Select a Location...</option>
+          {locationsList.map(location => (
+            <option key={location} value={location}>{location}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Reason to Next</label>
+        <input type="text" name="reason_to_next" value={formData.reason_to_next} onChange={handleChange} required className="w-full p-2 border rounded" />
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Part Status</label>
+        <select name="part_status" value={formData.part_status} onChange={handleChange} required className="w-full p-2 border rounded">
+          <option value="">Select a Status...</option>
+          <option value="Damaged">Damaged</option>
+          <option value="Not Available">Not Available</option>
+          <option value="Ready to Use">Ready to Use</option>
+        </select>
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Issues</label>
+        <textarea name="issues" value={formData.issues} onChange={handleChange} required className="w-full p-2 border rounded" />
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Department</label>
+        <select name="dept" value={formData.dept} onChange={handleChange} required className="w-full p-2 border rounded">
+          <option value="">Select a Department...</option>
+          {departmentList.map(dept => (
+            <option key={dept} value={dept}>{dept}</option>
+          ))}
+          <option value="other - enter">Other - Enter</option>
+        </select>
+        {showOtherDept && (
+          <input type="text" name="dept_other" value={formData.dept_other} onChange={handleChange} required className="w-full p-2 border rounded mt-2" />
+        )}
+      </div>
+
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Submitted By</label>
+        <select name="submitted_by" value={formData.submitted_by} onChange={handleChange} required className="w-full p-2 border rounded">
+          <option value="">Select...</option>
+          {submittersList.map(name => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+          <option value="other - enter">Other - Enter</option>
+        </select>
+        {showOtherSubmitter && (
+          <input type="text" name="submitted_other" value={formData.submitted_other} onChange={handleChange} required className="w-full p-2 border rounded mt-2" />
+        )}
+      </div>
+
+      <div className="mt-6">
+        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Submit</button>
+      </div>
+    </form>
+  );
+};
+
+    // ===== Render React App =====
+    ReactDOM.render(<PartMovementForm />, document.getElementById('root'));
+  </script>
+</body>
+</html>
