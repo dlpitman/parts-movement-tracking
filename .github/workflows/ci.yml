@@ -1,0 +1,35 @@
+name: Node CI
+
+on:
+  push:
+    branches: [ main, 'feat/*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests (if present)
+        run: npm test --if-present
+
+      - name: Run lint (if present)
+        run: npm run lint --if-present
+
+      - name: Start server smoke test (optional)
+        run: |
+          # If you have a script to run the server in the background and run a quick smoke check,
+          # add it here. By default this step is a no-op to avoid hanging runs.
+          echo "No smoke test configured"
