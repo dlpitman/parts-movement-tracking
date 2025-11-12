@@ -4,11 +4,44 @@
   "description": "Demo static pages and small API for part movement tracking",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "lint": "eslint .",
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "eslint": "^8.46.0",
+    "jest": "^29.6.0",
+    "supertest": "^6.4.0"
   }
+}
+{
+  "name": "parts-movement-demo",
+  "version": "1.0.0",
+  "description": "Demo static pages and small API for part movement tracking",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+      "cors": "^2.8.5",
+      "express": "^4.18.2",
+      "sqlite3": "^5.1.7"
+  }
+    ,
+    "devDependencies": {
+      "eslint": "^8.46.0",
+      "jest": "^29.6.0",
+      "supertest": "^6.4.0"
+    }
+    ,
+    "scripts": {
+      "start": "node server.js",
+      "lint": "eslint .",
+      "test": "jest --runInBand"
+    }
 }
