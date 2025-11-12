@@ -1,130 +1,148 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Movement Logs - Admin</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parts Movement Log</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen">
-  <div class="max-w-6xl mx-auto p-6">
-    <nav class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold">Movement Logs (Admin)</h1>
-      <div>
-        <a class="text-blue-600 hover:underline mr-4" href="/form.html">Form</a>
-        <a class="text-blue-600 hover:underline" href="/jogs.html">Admin</a>
-      </div>
-    </nav>
+<body>
+    <div id="root" class="container mx-auto p-4 max-w-6xl"></div>
+    <script type="text/babel">
+        const MovementLog = () => {
+            const [log, setLog] = React.useState([]);
+            const [searchConfig, setSearchConfig] = React.useState({ field: 'all', term: '', dateFrom: '', dateTo: '' });
+            const [sortConfig, setSortConfig] = React.useState({ key: 'current_move_date', direction: 'desc' });
+            const [currentPage, setCurrentPage] = React.useState(1);
+            const itemsPerPage = 10;
 
-    <div class="bg-white p-4 rounded shadow mb-4">
-      <div class="flex gap-3 flex-wrap">
-        <input id="search" type="search" placeholder="Search (part, etching, submitter, location)" class="p-2 border rounded flex-1" />
-        <input id="fromDate" type="date" class="p-2 border rounded" />
-        <input id="toDate" type="date" class="p-2 border rounded" />
-        <button id="filterBtn" class="px-3 py-2 bg-blue-600 text-white rounded">Filter</button>
-        <a id="csvLink" class="px-3 py-2 bg-gray-200 text-gray-800 rounded" href="/api/partslog/csv">Download CSV</a>
-      </div>
-    </div>
+            React.useEffect(() => {
+                // Fetch from backend API
+                fetch('/api/partslog')
+                    .then(res => res.json())
+                    .then(data => setLog(data))
+                    .catch(err => console.error('Error fetching log:', err));
+            }, []);
 
-    <div id="tableWrap" class="bg-white rounded shadow overflow-auto">
-      <table id="logsTable" class="min-w-full text-left">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="p-2">Timestamp</th>
-            <th class="p-2">Part Name</th>
-            <th class="p-2">Etching</th>
-            <th class="p-2">Current Move Date</th>
-            <th class="p-2">Next Location</th>
-            <th class="p-2">Submitted By</th>
-            <th class="p-2">Department</th>
-            <th class="p-2">Issues</th>
-          </tr>
-        </thead>
-        <tbody id="logsBody"></tbody>
-      </table>
-    </div>
-  </div>
+            const handleSearchChange = (e) => {
+                const { name, value } = e.target;
+                setSearchConfig(prev => ({ ...prev, [name]: value }));
+                setCurrentPage(1);
+            };
 
-  <script>
-    const API_BASE = '/api';
+            const handleClearSearch = () => {
+                setSearchConfig({ field: 'all', term: '', dateFrom: '', dateTo: '' });
+                setCurrentPage(1);
+            };
 
-    async function fetchLogs() {
-      const res = await fetch(`${API_BASE}/partslog`);
-      if (!res.ok) throw new Error('Failed to fetch logs');
-      return res.json();
-    }
+            const filteredLog = log.filter(entry => {
+                const term = searchConfig.term.toLowerCase();
+                const date = new Date(entry.current_move_date);
+                const dateFrom = searchConfig.dateFrom ? new Date(searchConfig.dateFrom) : null;
+                const dateTo = searchConfig.dateTo ? new Date(searchConfig.dateTo) : null;
+                const matchesDate = (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+                if (!matchesDate) return false;
+                if (searchConfig.field === 'all') {
+                    return Object.values(entry).some(val => val?.toString().toLowerCase().includes(term));
+                }
+                return entry[searchConfig.field]?.toString().toLowerCase().includes(term);
+            });
 
-    function renderRows(rows) {
-      const tbody = document.getElementById('logsBody');
-      tbody.innerHTML = '';
-      if (!rows.length) {
-        tbody.innerHTML = '<tr><td class="p-4" colspan="8">No records found.</td></tr>';
-        return;
-      }
-      for (const r of rows) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="p-2 align-top">${new Date(r._ts).toLocaleString()}</td>
-          <td class="p-2 align-top">${escapeHtml(r.part_name)}</td>
-          <td class="p-2 align-top">${escapeHtml(r.etching)}</td>
-          <td class="p-2 align-top">${escapeHtml(r.current_move_date)}</td>
-          <td class="p-2 align-top">${escapeHtml(r.next_location)}</td>
-          <td class="p-2 align-top">${escapeHtml(r.submitted_by)}</td>
-          <td class="p-2 align-top">${escapeHtml(r.dept)}</td>
-          <td class="p-2 align-top">${escapeHtml(r.issues)}</td>
-        `;
-        tbody.appendChild(tr);
-      }
-    }
+            const sortedLog = React.useMemo(() => {
+                return [...filteredLog].sort((a, b) => {
+                    if (sortConfig.key === 'current_move_date') {
+                        return sortConfig.direction === 'asc'
+                            ? new Date(a[sortConfig.key]) - new Date(b[sortConfig.key])
+                            : new Date(b[sortConfig.key]) - new Date(a[sortConfig.key]);
+                    }
+                    return sortConfig.direction === 'asc'
+                        ? (a[sortConfig.key] || '').localeCompare(b[sortConfig.key] || '')
+                        : (b[sortConfig.key] || '').localeCompare(a[sortConfig.key] || '');
+                });
+            }, [filteredLog, sortConfig]);
 
-    function escapeHtml(unsafe) {
-      return (unsafe||'')
-        .toString()
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
+            const paginatedLog = sortedLog.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            const totalPages = Math.ceil(sortedLog.length / itemsPerPage);
 
-    function applyFilters(rows) {
-      const q = (document.getElementById('search').value || '').toLowerCase().trim();
-      const from = document.getElementById('fromDate').value;
-      const to = document.getElementById('toDate').value;
-      return rows.filter(r => {
-        if (q) {
-          const hay = `${r.part_name} ${r.etching} ${r.submitted_by} ${r.next_location} ${r.last_location} ${r.issues}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        if (from) {
-          const d = new Date(r._ts).toISOString().slice(0,10);
-          if (d < from) return false;
-        }
-        if (to) {
-          const d = new Date(r._ts).toISOString().slice(0,10);
-          if (d > to) return false;
-        }
-        return true;
-      });
-    }
+            const requestSort = (key) => {
+                let direction = 'asc';
+                if (sortConfig.key === key && sortConfig.direction === 'asc') {
+                    direction = 'desc';
+                }
+                setSortConfig({ key, direction });
+            };
 
-    let cached = [];
+            const handleDownload = () => {
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(sortedLog);
+                XLSX.utils.book_append_sheet(wb, ws, "Parts Log");
+                XLSX.writeFile(wb, 'parts_log.xlsx');
+            };
 
-    async function loadAndRender() {
-      try {
-        const rows = await fetchLogs();
-        cached = rows.sort((a,b) => b._ts - a._ts);
-        renderRows(applyFilters(cached));
-      } catch (err) {
-        document.getElementById('logsBody').innerHTML = `<tr><td class="p-4" colspan="8">Error fetching logs: ${escapeHtml(err.message)}</td></tr>`;
-      }
-    }
+            return (
+                <div>
+                    <h2 className="text-2xl font-bold mb-4">Parts Movement Log</h2>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        <select name="field" value={searchConfig.field} onChange={handleSearchChange} className="p-2 border rounded-md">
+                            <option value="all">All Fields</option>
+                            <option value="part_name">Part Name</option>
+                            <option value="etching">Etching</option>
+                            <option value="current_move_date">Current Move Date</option>
+                            <option value="next_location">Next Location</option>
+                            <option value="reason_to_next">Reason to Next</option>
+                            <option value="part_status">Part Status</option>
+                            <option value="submitted_by">Submitted By</option>
+                        </select>
+                        <input name="term" type="text" placeholder="Search term..." value={searchConfig.term} onChange={handleSearchChange} className="flex-grow p-2 border rounded-md" />
+                        <input name="dateFrom" type="date" value={searchConfig.dateFrom} onChange={handleSearchChange} className="p-2 border rounded-md" />
+                        <input name="dateTo" type="date" value={searchConfig.dateTo} onChange={handleSearchChange} className="p-2 border rounded-md" />
+                        <button onClick={handleClearSearch} className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">Clear</button>
+                        <button onClick={handleDownload} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Download Log</button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full border border-gray-300">
+                            <thead>
+                                <tr className="bg-gray-100">
+                                    {['part_name', 'etching', 'current_move_date', 'next_location', 'reason_to_next', 'part_status', 'submitted_by'].map(key => (
+                                        <th key={key} onClick={() => requestSort(key)} className="border px-4 py-2 cursor-pointer">
+                                            {key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                            {sortConfig.key === key ? (sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : null}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paginatedLog.map((entry, index) => (
+                                    <tr key={index} className="hover:bg-gray-50">
+                                        <td className="border px-4 py-2">{entry.part_name}</td>
+                                        <td className="border px-4 py-2">{entry.etching}</td>
+                                        <td className="border px-4 py-2">{entry.current_move_date}</td>
+                                        <td className="border px-4 py-2">{entry.next_location}</td>
+                                        <td className="border px-4 py-2">{entry.reason_to_next}</td>
+                                        <td className="border px-4 py-2">{entry.part_status}</td>
+                                        <td className="border px-4 py-2">{entry.submitted_by}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="flex justify-between mt-4">
+                        <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="px-4 py-2 bg-gray-600 text-white rounded-md disabled:opacity-60">Previous</button>
+                        <span>Page {currentPage} of {totalPages}</span>
+                        <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="px-4 py-2 bg-gray-600 text-white rounded-md disabled:opacity-60">Next</button>
+                    </div>
+                    <div className="mt-4">
+                        <a href="form.html" className="text-blue-600 underline">Back to Form</a>
+                    </div>
+                </div>
+            );
+        };
 
-    document.getElementById('filterBtn').addEventListener('click', () => renderRows(applyFilters(cached)));
-    document.getElementById('search').addEventListener('input', () => renderRows(applyFilters(cached)));
-
-    // initial load
-    loadAndRender();
-  </script>
+        ReactDOM.render(<MovementLog />, document.getElementById('root'));
+    </script>
 </body>
 </html>
