@@ -1,0 +1,11 @@
+pm_externalid,part_externalid,pm_etchingcode,pm_status,pm_notes
+1,1,ETCH-CAN-001,In Service,
+2,1,ETCH-CAN-002,N/A,
+3,2,ETCH-CBDB-001,In Service,Initial engraving
+4,3,ETCH-CB-001,In Service,
+5,4,ETCH-DEL-001,In Service,
+6,5,ETCH-DEN-001,N/A,
+7,6,ETCH-IMPB-001,In Service,
+8,7,ETCH-IMPC-001,In Service,
+9,8,ETCH-INF-001,In Service,
+10,9,ETCH-IT-001,In Service
