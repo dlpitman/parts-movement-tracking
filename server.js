@@ -89,6 +89,38 @@ app.get('/api/submitters', (req, res) => {
   });
 });
 
+// API: register new submitter
+app.post('/api/register', (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    
+    const trimmedName = name.trim();
+    
+    // Check if name already exists
+    db.get('SELECT name FROM submitters WHERE name = ?', [trimmedName], (err, row) => {
+      if (err) return res.status(500).json({ error: 'DB error' });
+      if (row) return res.status(409).json({ error: 'Name already registered' });
+      
+      // Insert new submitter
+      const stmt = db.prepare('INSERT INTO submitters (name) VALUES (?)');
+      stmt.run(trimmedName, function(err) {
+        if (err) {
+          console.error('Insert error', err);
+          return res.status(500).json({ error: 'Failed to register' });
+        }
+        res.status(201).json({ ok: true, name: trimmedName });
+      });
+      stmt.finalize();
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 // API: add log entry
 app.post('/api/partslog', (req, res) => {
   try {
